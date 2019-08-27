@@ -9,7 +9,6 @@ RUN mv ghostscript-9.27-linux-x86_64/gs-927-linux-x86_64 /usr/bin/gs
 # Copy files to www-root
 
 COPY index.php composer.json /var/www/html/
-RUN rm /var/www/html/index.html
 
 # Composer
 RUN curl -sS https://getcomposer.org/installer | php \
@@ -18,6 +17,7 @@ RUN curl -sS https://getcomposer.org/installer | php \
 
 RUN chmod u+w /var/www/html
 RUN chown -R www-data:www-data /var/www/html/
+RUN rm /var/www/html/index.html
 
 WORKDIR /var/www/html
 USER www-data
