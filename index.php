@@ -58,10 +58,11 @@ if ($returnVar !== 0) {
 }
 
 // Output converted image
+$img = file_get_contents($outputPath);
 header('Content-Type: image/jpeg');
-header('Content-Length: ' . $result->getContentLength());
+header('Content-Length: ' . strlen($img));
 
-echo file_get_contents($outputPath);
+echo $img;
 
 return;
 ?>
