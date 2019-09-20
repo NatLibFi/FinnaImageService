@@ -64,5 +64,8 @@ header('Content-Length: ' . strlen($img));
 
 echo $img;
 
+unlink($inputPath);
+unlink($outputPath);
+
 return;
 ?>
