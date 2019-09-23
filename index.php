@@ -45,7 +45,6 @@ $client = new \Zend\Http\Client();
 $client->setOptions(['strictredirects' => false, 'timeout' => 20]);
 $client->setStream($inputPath);
 $client->setUri($url);
-$client->setAdapter('Zend\Http\Client\Adapter\Curl');
 
 try {
     $result = $client->send();
