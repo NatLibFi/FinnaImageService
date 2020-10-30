@@ -55,9 +55,9 @@ try {
     return;
 }
 
-if (!$result->isSuccess() || !$result->getContentLength()) {
+if (!$result->isSuccess()) {
     error_log(
-        "Error in downloaded pdf, content length: "
+        "Error downloading pdf, content length: "
         . $result->getContentLength() . ", url: $url"
     );
     unlink($inputPath);
