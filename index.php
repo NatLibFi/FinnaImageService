@@ -72,7 +72,7 @@ if (!$outputPath = tempnam(sys_get_temp_dir(), 'pdf2jpg-output')) {
 
 // Run Ghostscript
 $gs = sprintf(
-    '/usr/bin/gs -dQUIET -dSAFER -dBATCH -dNOPAUSE -dNOPROMPT -dMaxBitmap=500000000 -dAlignToPixels=0 -dGridFitTT=2 -dTextAlphaBits=4 -dGraphicsAlphaBits=4 -r150 -dFirstPage=1 -dLastPage=1 -sDEVICE=jpeg -o %s %s',
+    '/usr/bin/timeout 60s /usr/bin/gs -dQUIET -dSAFER -dBATCH -dNOPAUSE -dNOPROMPT -dMaxBitmap=500000000 -dAlignToPixels=0 -dGridFitTT=2 -dTextAlphaBits=4 -dGraphicsAlphaBits=4 -r150 -dFirstPage=1 -dLastPage=1 -sDEVICE=jpeg -o %s %s',
     $outputPath, $inputPath
 );
 exec($gs, $output, $returnVar);
