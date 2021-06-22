@@ -1,5 +1,8 @@
 FROM beveradb/docker-apache-php7-fpm
 
+# Install cron
+RUN apt-get update && apt-get -y install cron
+
 # Download Ghostscript
 WORKDIR /tmp
 RUN curl -L https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs927/ghostscript-9.27-linux-x86_64.tgz --output gs.tgz
@@ -7,8 +10,8 @@ RUN tar zxvf gs.tgz
 RUN mv ghostscript-9.27-linux-x86_64/gs-927-linux-x86_64 /usr/bin/gs
 
 # Copy files to www-root
-
 COPY index.php composer.json /var/www/html/
+COPY src /var/www/html/src
 
 # Composer
 RUN curl -sS https://getcomposer.org/installer | php \
@@ -24,3 +27,12 @@ USER www-data
 RUN composer --no-cache update
 
 USER root
+
+# Install crontab to prune cache
+RUN echo "0 4 * * 0 find /tmp/ -mtime +7 -type f -exec rm {} +" | crontab -
+
+# Start cron, php-fpm and Apache
+CMD service cron start \
+    # entry point from beveradb/docker-apache-php7-fpm
+    && service php7.1-fpm start \
+    && /usr/sbin/apache2ctl -D FOREGROUND
