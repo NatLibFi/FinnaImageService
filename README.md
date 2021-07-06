@@ -1,7 +1,7 @@
 # FinnaImageService
 
 HTTP-service for generating a preview image from a PDF cover page using Ghostscript.
-See index.php for Ghostscript command line parameters.
+See ImageService.php for Ghostscript command line parameters.
 
 # Installation
 
