@@ -47,8 +47,8 @@ class ImageService
      */
     public function __construct()
     {
-        $this->baseDir = sys_get_temp_dir();
-        $this->hostStatus = new \HostStatus($this->baseDir);
+        $this->baseDir = sys_get_temp_dir() . '/pdf2jpg';
+        $this->hostStatus = new \HostStatus("{$this->baseDir}/status");
     }
 
     /**
@@ -63,7 +63,8 @@ class ImageService
             return;
         }
 
-        $outputPath = $this->getImagePath($url, 'pdf2jpg-output-');
+        $fileName = md5($url);
+        $outputPath = "{$this->baseDir}/out/${fileName}";
         if (file_exists($outputPath) && $this->outputImage($outputPath)) {
             return;
         }
@@ -74,7 +75,7 @@ class ImageService
         }
 
         // Download PDF
-        $inputPath = $this->getImagePath($url, 'pdf2jpg-input-');
+        $inputPath = "{$this->baseDir}/in/${fileName}";
 
         $client = new \Laminas\Http\Client();
         $client->setOptions(['strictredirects' => false, 'timeout' => 20]);
@@ -151,19 +152,6 @@ class ImageService
             error_log($e->getMessage());
             return false;
         }
-    }
-
-    /**
-     * Get image file path.
-     *
-     * @param string $url    Image URL
-     * @param string $prefix Path prefix
-     *
-     * @return bool string
-     */
-    protected function getImagePath(string $url, string $prefix = '') : string
-    {
-        return $this->baseDir . '/' . $prefix . md5($url);
     }
 }
 ?>
