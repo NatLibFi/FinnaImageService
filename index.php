@@ -1,9 +1,9 @@
 <?php
 /**
- * HTTP-service for converting first page of a PDF document to a JPG image
+ * HTTP service for converting first page of a PDF document to a JPG image
  * using Ghostscript.
  *
- * PHP version 7
+ * PHP version 8
  *
  * Copyright (C) The National Library of Finland 2019-2021.
  *

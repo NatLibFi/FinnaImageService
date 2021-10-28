@@ -3,7 +3,7 @@
  * HTTP-service for converting first page of a PDF document to a JPG image
  * using Ghostscript.
  *
- * PHP version 7
+ * PHP version 8
  *
  * Copyright (C) The National Library of Finland 2019-2021.
  *
@@ -23,6 +23,7 @@
  * @category VuFind
  * @package  PDF
  * @author   Samuli Sillanpää <samuli.sillanpaa@helsinki.fi>
+ * @author   Ere Maijala <ere.maijala@helsinki.fi>
  * @license  http://opensource.org/licenses/gpl-2.0.php GNU General Public License
  * @link     https://vufind.org/wiki/configuration:external_content Wiki
  */
@@ -87,7 +88,9 @@ class ImageService
         } catch (\Exception $e) {
             error_log("Failed to download pdf, url: $url");
             error_log($e->getMessage());
-            unlink($inputPath);
+            if (file_exists($inputPath)) {
+                unlink($inputPath);
+            }
             $this->hostStatus->addHostFailure($host);
             return;
         }
@@ -95,7 +98,7 @@ class ImageService
         if (!$result->isSuccess()) {
             error_log(
                 "Error downloading pdf, content length: "
-                . $result->getContentLength() . ", url: $url"
+                . strlen($result->getBody()) . ", url: $url"
             );
             unlink($inputPath);
             $this->hostStatus->addHostFailure($host);
@@ -131,7 +134,7 @@ class ImageService
             error_log($e->getMessage());
         }
     }
-    
+
     /**
      * Output headers and image.
      *
