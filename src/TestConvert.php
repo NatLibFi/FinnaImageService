@@ -19,4 +19,4 @@ $gs = sprintf(
     $outputPath, $inputPath
 );
 exec($gs, $output, $returnVar);
-?>
+
