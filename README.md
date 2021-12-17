@@ -40,6 +40,10 @@ This example uses pdf2jpg as the image and container name and tcp port 36000 as 
 
   Then create the service just like when doing an initial installation.
 
+- All in one:
+
+      systemctl stop pdf2jpg && docker rm pdf2jpg && docker rmi pdf2jpg && docker build -t pdf2jpg . && docker create -p 36000:80 --name pdf2jpg pdf2jpg && systemctl start pdf2jpg
+
 # Troubleshooting
 
 If the service fails to start, you may need to stop Docker, remove `/var/lib/docker/network/files/local-kv.db` (or wherever Docker stores its files, e.g. `/data/docker/network/files/local-kv.db`) and try again.
