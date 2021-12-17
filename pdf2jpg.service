@@ -1,0 +1,11 @@
+[Unit]
+Description=pdf2jpg container
+Requires=docker.service
+
+[Service]
+Restart=always
+ExecStart=/usr/bin/docker start -a pdf2jpg
+ExecStop=/usr/bin/docker stop -t 2 pdf2jpg
+
+[Install]
+WantedBy=default.target
