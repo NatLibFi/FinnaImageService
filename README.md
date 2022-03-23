@@ -17,11 +17,11 @@ This example uses pdf2jpg as the image and container name and tcp port 36000 as 
 
 - Start service:
 
-      docker run -p 36000:5000 pdf2jpg
+      docker run -p 36000:80 pdf2jpg
 
 - Or just create the container e.g. for starting via systemd (see accompanying pdf2jpg.service for systemd configuration):
 
-      docker create -p 36000:5000 --name pdf2jpg pdf2jpg
+      docker create -p 36000:80 --name pdf2jpg pdf2jpg
 
 # Recreating the service
 
@@ -50,4 +50,4 @@ If the service fails to start, you may need to stop Docker, remove `/var/lib/doc
 
 # Usage
 
-    curl http://127.0.0.1:36000?url=<PDF url>
+    http://127.0.0.1:36000/convert?url=<PDF url>
