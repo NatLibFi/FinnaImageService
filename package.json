@@ -1,0 +1,28 @@
+{
+  "name": "finnaimageservice",
+  "version": "1.0.0",
+  "description": "PDF to jpg converter",
+  "main": "index.js",
+  "scripts": {
+    "test": "Test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NatLibFi/FinnaImageService.git"
+  },
+  "author": "Juha Luoma",
+  "license": "GPL-2.0",
+  "bugs": {
+    "url": "https://github.com/NatLibFi/FinnaImageService/issues"
+  },
+  "homepage": "https://github.com/NatLibFi/FinnaImageService#readme",
+  "dependencies": {
+    "crypto-js": "4.1.1",
+    "express": "4.17.3",
+    "log4js": "6.4.4",
+    "node-fetch": "3.2.3",
+    "pdf-image": "2.0.0",
+    "winston": "3.6.0"
+  },
+  "type": "module"
+}
