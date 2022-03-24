@@ -140,7 +140,7 @@ function convertPDFtoJpg(source, destination, res) {
       });
     }
   }, (reason) => {
-    logger.error(`Failed to convert PDF into a jpg file. Reason: ${reason}`);
+    logger.error(`Failed to convert PDF into a jpg file. Reason: ${reason.message} / ${reason.error}`);
   });
 }
 
