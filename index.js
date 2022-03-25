@@ -138,6 +138,7 @@ function convertPDFtoJpg(source, destination, res) {
       }
     }
   }, (reason) => {
+    res.sendStatus(404);
     logger.error(`Failed to convert PDF into a jpg file. Reason: ${reason.message} / ${reason.error}`);
   });
 }
@@ -168,7 +169,7 @@ app.get('/convert', (req, res) => {
 });
 
 app.get('/clear', (req, res) => {
-  let imgCount = 0;
+  let delCount = 0;
   [tmpDir, imagesDir].forEach((dir) => {
     fs.readdir(dir, (err, files) => {
       if (err) {
@@ -178,9 +179,11 @@ app.get('/clear', (req, res) => {
       files.forEach((file) => {
         const tar = path.join(dir, file);
         removeFile(tar);
+        delCount++;
       });
     });
   });
+  logger.info(`Deleted ${delCount} objects.`);
   res.sendStatus(200);
 });
 
