@@ -124,13 +124,14 @@ function convertPDFtoJpg(source, destination, res) {
   const pdf = new PDFImage(source, {
     convertOptions: {
       "-define": "PDF:use-cropbox=true",
-      "-strip": ''
+      "-strip": '',
+      "-format": 'jpg'
     }
   });
   pdf.convertPage(0).then((savedFile) => {
     if (fs.existsSync(savedFile)) {
       fs.rename(savedFile, destination, (err) => {
-        fs.unlinkSync(source);
+        removeFile(source);
         if (err) {
           logger.error(`Error moving file: ${savedFile} > ${destination}. Reason: ${err.message}`);
           res.sendStatus(500);
@@ -178,14 +179,11 @@ app.get('/clear', (req, res) => {
       }
       files.forEach((file) => {
         const tar = path.join(dir, file);
-        fs.unlink(tar, error => {
-          if (error) {
-            logger.error(`Error removing file: ${tar}. Reason: ${error.message}`);
-          }
-        });
+        removeFile(tar);
       });
     });
   });
+  res.sendStatus(200);
 });
 
 app.get('/status', (req, res) => {
