@@ -13,7 +13,7 @@ const myFormat = printf(({ level, message, label, timestamp }) => {
   return `{"${timestamp}" "${level}": "${message}"}`;
 });
 
-const port = 80;
+const port = 5000;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -126,20 +126,16 @@ function convertPDFtoJpg(source, destination, res) {
       "-define": "PDF:use-cropbox=true",
       "-strip": '',
       "-compress": 'JPEG',
-      "-quality": '90'
+      "-write": destination
     }
   });
   pdf.convertPage(0).then((savedFile) => {
     if (fs.existsSync(savedFile)) {
-      fs.rename(savedFile, destination, (err) => {
-        removeFile(source);
-        if (err) {
-          logger.error(`Error moving file: ${savedFile} > ${destination}. Reason: ${err.message}`);
-          res.sendStatus(500);
-        } else {
-          sendResult(res, destination);
-        }
-      });
+      removeFile(savedFile);
+      removeFile(source);
+      if (fs.existsSync(destination)) {
+        sendResult(res, destination);
+      }
     }
   }, (reason) => {
     logger.error(`Failed to convert PDF into a jpg file. Reason: ${reason.message} / ${reason.error}`);
@@ -150,7 +146,7 @@ app.get('/convert', (req, res) => {
   if (typeof req.query.url !== 'undefined' && stringIsAValidUrl(req.query.url)) {
     const url = req.query.url;
     const fileName = MD5(url);
-    const imagePath = `${imagesDir}/${fileName}.jpeg`;
+    const imagePath = `${imagesDir}/${fileName}.jpg`;
     logger.info(`Convert request: ${url},${fileName},${imagePath}`);
     if (!fs.existsSync(imagePath)) {
       const tmpPath = `${tmpDir}/${fileName}.pdf`;
@@ -172,6 +168,7 @@ app.get('/convert', (req, res) => {
 });
 
 app.get('/clear', (req, res) => {
+  let imgCount = 0;
   [tmpDir, imagesDir].forEach((dir) => {
     fs.readdir(dir, (err, files) => {
       if (err) {

@@ -1,5 +1,5 @@
 FROM node:14.19.1
-
+RUN apt-get update
 # Create app directory
 WORKDIR /usr/src/app
 
@@ -16,7 +16,7 @@ COPY . .
 
 EXPOSE 80
 
-RUN apt-get update
+
 RUN apt-get install -y ghostscript
 RUN apt-get install -y less
 
