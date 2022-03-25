@@ -125,7 +125,7 @@ function convertPDFtoJpg(source, destination, res) {
     convertOptions: {
       "-define": "PDF:use-cropbox=true",
       "-strip": '',
-      "-format": 'jpeg'
+      "-compress": 'jpeg'
     }
   });
   pdf.convertPage(0).then((savedFile) => {
