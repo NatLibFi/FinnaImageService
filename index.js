@@ -125,7 +125,7 @@ function convertPDFtoJpg(source, destination, res) {
     convertOptions: {
       "-define": "PDF:use-cropbox=true",
       "-strip": '',
-      "-format": 'jpg'
+      "-format": 'jpeg'
     }
   });
   pdf.convertPage(0).then((savedFile) => {
@@ -149,7 +149,7 @@ app.get('/convert', (req, res) => {
   if (typeof req.query.url !== 'undefined' && stringIsAValidUrl(req.query.url)) {
     const url = req.query.url;
     const fileName = MD5(url);
-    const imagePath = `${imagesDir}/${fileName}.jpg`;
+    const imagePath = `${imagesDir}/${fileName}.jpeg`;
     logger.info(`Convert request: ${url},${fileName},${imagePath}`);
     if (!fs.existsSync(imagePath)) {
       const tmpPath = `${tmpDir}/${fileName}.pdf`;
