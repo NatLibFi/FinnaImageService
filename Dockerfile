@@ -15,4 +15,9 @@ RUN npm ci --only=production
 COPY . .
 
 EXPOSE 80
+
+RUN apt-get update
+RUN apt-get install -y ghostscript
+RUN apt-get install -y less
+
 CMD [ "node", "index.js" ]
