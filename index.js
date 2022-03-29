@@ -290,6 +290,14 @@ app.get('/status', (req, res) => {
   res.sendStatus(200);
 });
 
+app.get('/infolog', (req, res) => {
+  res.download('./info.log');
+});
+
+app.get('/errorlog', (req, res) => {
+  res.download('./error.log');
+});
+
 app.get('/kill', (req, res) => {
   if (process.env.NODE_ENV !== 'production') {
     res.send(':( Goodbye...');
