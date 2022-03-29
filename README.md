@@ -65,4 +65,4 @@ If the service fails to start, you may need to stop Docker, remove `/var/lib/doc
       /status Displays OK if everything is going fine
       /errorlog Allows to download the error log file
       /infolog Allows to download the info log file
-      /kill If the env is set to development, will exit the process. (Handy if running docker without systemd locally)
+      /kill Useful for restarting the docker, if instanciated as a service.
