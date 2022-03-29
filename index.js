@@ -7,7 +7,6 @@ import {fileURLToPath, URL} from 'url';
 import {PDFImage} from 'pdf-image';
 import winston from 'winston';
 import childProcess from 'child_process';
-import readline from 'readline';
 
 const { combine, timestamp, printf } = winston.format;
 
@@ -90,12 +89,10 @@ function downloadFile(fileUrl, destPath) {
               let contentType = altered['content-type'] || '';
               contentType = contentType.toLowerCase();
               if (contentType.includes('application/pdf') ) {
-                console.log('Checked with content type');
                 return resolve(true);
               } else if (contentType.length === 0) {
                 contentType = childProcess.execSync('file --mime-type -b "' + destPath + '"').toString();
                 if (contentType.trim() === 'application/pdf') {
-                  console.log('Checked with process');
                   return resolve(true);
                 }
               }
@@ -124,13 +121,11 @@ function sendResult(res, file) {
  * @param {string} file 
  */
 function removeFile(file) {
-  if (fs.existsSync(file)) {
-    fs.unlink(file, err => {
-      if (err) {
-        logger.error(`Error removing file: ${file}. Reason: ${err.message}`);
-      }
-    });
-  }
+  fs.unlink(file, err => {
+    if (err) {
+      logger.error(`Error removing file: ${file}. Reason: ${err.message}`);
+    }
+  });
 }
 
 /**
@@ -167,31 +162,13 @@ function convertPDFtoJpg(source, destination, res) {
     }
   });
   pdf.convertPage(0).then((savedFile) => {
-    if (fs.existsSync(savedFile)) {
-      removeFile(savedFile);
-      if (fs.existsSync(destination)) {
-        sendResult(res, destination);
-      }
-    }
+    sendResult(res, destination);
+    removeFile(savedFile);
     removeFile(source);
   }, (reason) => {
     res.sendStatus(404);
     logger.error(`Failed to convert PDF into a jpg file. Reason: ${reason.message} / ${reason.error}`);
   });
-}
-
-function isBlocked(fileName) {
-  let isBlocked = false;
-  const readInterface = readline.createInterface({
-    input: fs.createReadStream(blockedFile),
-    output: process.stdout,
-    console: false
-  });
-  readInterface.on('line', function(line) {
-    console.log(line);
-  });
-
-  return isBlocked;
 }
 
 app.get('/convert', (req, res) => {
@@ -208,31 +185,20 @@ app.get('/convert', (req, res) => {
     logger.info(`Convert request: ${url},${fileName},${imagePath}`);
     if (!fs.existsSync(imagePath)) {
       const tmpPath = `${tmpDir}/${fileName}.pdf`;
-      if (fs.existsSync(tmpPath)) {
-        logger.info(`PDF exists: ${url}`);
+      const response = downloadFile(url, tmpPath).then((reason, error) => {
         convertPDFtoJpg(tmpPath, imagePath, res);
-      } else {
-        const response = downloadFile(url, tmpPath).then((reason, error) => {
-          if (fs.existsSync(imagePath)) {
-            sendResult(res, imagePath);
-          } else {
-            convertPDFtoJpg(tmpPath, imagePath, res);
+      });
+      response.catch((error) => {
+        logger.error(error);
+        // Lets block this url for the future and remove it also.
+        removeFile(tmpPath);
+        fs.writeFile(blockPath, '1', { flag: 'wx' }, function (err) {
+          if (err) {
+            logger.error(`Error creating block file: ${blockPath}. Reason: ${err.message}`);
           }
         });
-        response.catch((error) => {
-          logger.error(error);
-          // Lets block this url for the future and remove it also.
-          removeFile(tmpPath);
-          if (!fs.existsSync(blockPath)) {
-            fs.writeFile(blockPath, '1', { flag: 'wx' }, function (err) {
-              if (err) {
-                logger.error(`Error creating block file: ${blockPath}. Reason: ${err.message}`);
-              }
-            });
-          }
-          res.sendStatus(400);
-        });
-      }
+        res.sendStatus(400);
+      });
     } else {
       sendResult(res, imagePath);
     }
@@ -299,10 +265,8 @@ app.get('/errorlog', (req, res) => {
 });
 
 app.get('/kill', (req, res) => {
-  if (process.env.NODE_ENV !== 'production') {
-    res.send(':( Goodbye...');
-    process.exit();
-  }
+  res.send(':( Goodbye...');
+  process.exit();
 });
 
 app.listen(port, () => {

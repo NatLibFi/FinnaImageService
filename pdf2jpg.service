@@ -4,8 +4,8 @@ Requires=docker.service
 
 [Service]
 Restart=always
-ExecStart=/usr/bin/docker start -a pdf2jpg
-ExecStop=/usr/bin/docker stop -t 2 pdf2jpg
+ExecStart=/usr/bin/docker start -a pdf2jpgnew
+ExecStop=/usr/bin/docker stop -t 2 pdf2jpgnew
 
 [Install]
 WantedBy=default.target
