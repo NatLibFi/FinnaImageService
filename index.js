@@ -290,6 +290,13 @@ app.get('/status', (req, res) => {
   res.sendStatus(200);
 });
 
+app.get('/kill', (req, res) => {
+  if (process.env.NODE_ENV !== 'production') {
+    res.send(':( Goodbye...');
+    process.exit();
+  }
+});
+
 app.listen(port, () => {
   console.log(`Image service now listening to port: ${port}`);
 });
