@@ -19,7 +19,6 @@
   "dependencies": {
     "crypto-js": "4.1.1",
     "express": "4.17.3",
-    "log4js": "6.4.4",
     "node-fetch": "3.2.3",
     "pdf-image": "2.0.0",
     "winston": "3.6.0"

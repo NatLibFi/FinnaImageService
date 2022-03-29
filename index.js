@@ -6,6 +6,8 @@ import path from 'path';
 import {fileURLToPath, URL} from 'url';
 import {PDFImage} from 'pdf-image';
 import winston from 'winston';
+import childProcess from 'child_process';
+import readline from 'readline';
 
 const { combine, timestamp, printf } = winston.format;
 
@@ -13,13 +15,25 @@ const myFormat = printf(({ level, message, label, timestamp }) => {
   return `{"${timestamp}" "${level}": "${message}"}`;
 });
 
-const port = 80;
+let port = 80;
+process.argv.forEach((arg) => {
+  const splitted = arg.split('=');
+  if (splitted.length === 2) {
+    const cmd = splitted[0].toString().replace(/-/g, '');
+    switch (cmd) {
+      case 'port':
+        port = parseInt(splitted[1]);
+        break;
+    }
+  }
+});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const imagesDir = path.join(__dirname, 'images');
 const tmpDir = path.join(__dirname, 'tmp');
+const blockedFile = path.join(__dirname, 'blocked');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -49,7 +63,9 @@ if (!fs.existsSync(imagesDir)) {
 if (!fs.existsSync(tmpDir)) {
   fs.mkdirSync(tmpDir);
 }
-
+if (!fs.existsSync(blockedFile)) {
+  fs.mkdirSync(blockedFile);
+}
 const app = express();
 
 /**
@@ -64,12 +80,29 @@ function downloadFile(fileUrl, destPath) {
 
   return new Promise((resolve, reject) => {
       fetch(fileUrl).then((res) => {
-          const fileStream = fs.createWriteStream(destPath);
-          res.body.on('error', reject);
-          fileStream.on('finish', () => {
+          if (fs.existsSync(destPath)) {
             resolve(true);
-          });
-          res.body.pipe(fileStream);
+          } else {
+            const fileStream = fs.createWriteStream(destPath);
+            const altered = Object.fromEntries(Array.from(res.headers));
+            res.body.on('error', reject);
+            fileStream.on('finish', () => {
+              let contentType = altered['content-type'] || '';
+              contentType = contentType.toLowerCase();
+              if (contentType.includes('application/pdf') ) {
+                console.log('Checked with content type');
+                return resolve(true);
+              } else if (contentType.length === 0) {
+                contentType = childProcess.execSync('file --mime-type -b "' + destPath + '"').toString();
+                if (contentType.trim() === 'application/pdf') {
+                  console.log('Checked with process');
+                  return resolve(true);
+                }
+              }
+              reject('Loaded file is not a pdf');
+            });
+            res.body.pipe(fileStream);
+          }
       });
   });
 }
@@ -91,17 +124,21 @@ function sendResult(res, file) {
  * @param {string} file 
  */
 function removeFile(file) {
-  fs.unlink(file, err => {
-    if (err) {
-      logger.error(`Error removing file: ${file}. Reason: ${err.message}`);
-    }
-  });
+  if (fs.existsSync(file)) {
+    fs.unlink(file, err => {
+      if (err) {
+        logger.error(`Error removing file: ${file}. Reason: ${err.message}`);
+      }
+    });
+  }
 }
 
 /**
  * If the given url is valid.
  * 
  * @param {string} s 
+ * 
+ * @returns {boolean} is the url valid or not.
  */
 const stringIsAValidUrl = (s) => {
   try {
@@ -132,22 +169,42 @@ function convertPDFtoJpg(source, destination, res) {
   pdf.convertPage(0).then((savedFile) => {
     if (fs.existsSync(savedFile)) {
       removeFile(savedFile);
-      removeFile(source);
       if (fs.existsSync(destination)) {
         sendResult(res, destination);
       }
     }
+    removeFile(source);
   }, (reason) => {
     res.sendStatus(404);
     logger.error(`Failed to convert PDF into a jpg file. Reason: ${reason.message} / ${reason.error}`);
   });
 }
 
+function isBlocked(fileName) {
+  let isBlocked = false;
+  const readInterface = readline.createInterface({
+    input: fs.createReadStream(blockedFile),
+    output: process.stdout,
+    console: false
+  });
+  readInterface.on('line', function(line) {
+    console.log(line);
+  });
+
+  return isBlocked;
+}
+
 app.get('/convert', (req, res) => {
   if (typeof req.query.url !== 'undefined' && stringIsAValidUrl(req.query.url)) {
     const url = req.query.url;
     const fileName = MD5(url);
+    // If blocked, return proper header
     const imagePath = `${imagesDir}/${fileName}.jpg`;
+    const blockPath = `${blockedFile}/${fileName}`;
+    if (fs.existsSync(blockPath)) {
+      res.sendStatus(400);
+      return;
+    }
     logger.info(`Convert request: ${url},${fileName},${imagePath}`);
     if (!fs.existsSync(imagePath)) {
       const tmpPath = `${tmpDir}/${fileName}.pdf`;
@@ -155,9 +212,25 @@ app.get('/convert', (req, res) => {
         logger.info(`PDF exists: ${url}`);
         convertPDFtoJpg(tmpPath, imagePath, res);
       } else {
-        const response = downloadFile(url, tmpPath).then(() => {
-          logger.info(`PDF download: ${url}`);
-          convertPDFtoJpg(tmpPath, imagePath, res);
+        const response = downloadFile(url, tmpPath).then((reason, error) => {
+          if (fs.existsSync(imagePath)) {
+            sendResult(res, imagePath);
+          } else {
+            convertPDFtoJpg(tmpPath, imagePath, res);
+          }
+        });
+        response.catch((error) => {
+          logger.error(error);
+          // Lets block this url for the future and remove it also.
+          removeFile(tmpPath);
+          if (!fs.existsSync(blockPath)) {
+            fs.writeFile(blockPath, '1', { flag: 'wx' }, function (err) {
+              if (err) {
+                logger.error(`Error creating block file: ${blockPath}. Reason: ${err.message}`);
+              }
+            });
+          }
+          res.sendStatus(400);
         });
       }
     } else {
@@ -168,22 +241,48 @@ app.get('/convert', (req, res) => {
   }
 });
 
-app.get('/clear', (req, res) => {
+/**
+ * Clear given directory path of files
+ *
+ * @param {string} dirpath 
+ * 
+ * @returns {number} amount of files deleted
+ */
+function clearDirectory(dirpath) {
   let delCount = 0;
-  [tmpDir, imagesDir].forEach((dir) => {
-    fs.readdir(dir, (err, files) => {
-      if (err) {
-        logger.error(`Error reading directory: ${dir}. Reason: ${err.message}`);
-        throw err;
-      }
-      files.forEach((file) => {
-        const tar = path.join(dir, file);
-        removeFile(tar);
-        delCount++;
-      });
-    });
+  const files = fs.readdirSync(dirpath);
+  files.forEach(file => {
+    const tar = path.join(dirpath, file);
+    removeFile(tar);
+    delCount++;
   });
-  logger.info(`Deleted ${delCount} objects.`);
+  return delCount;
+}
+
+app.get('/clearimg', (req, res) => {
+  const result = clearDirectory(imagesDir);
+  logger.info(`Deleted ${result} images.`);
+  res.sendStatus(200);
+});
+
+app.get('/clearpdf', (req, res) => {
+  const result = clearDirectory(tmpDir);
+  logger.info(`Deleted ${result} pdfs.`);
+  res.sendStatus(200);
+});
+
+app.get('/clearblocks', (req, res) => {
+  const result = clearDirectory(blockedFile);
+  logger.info(`Deleted ${result} blocked entries.`);
+  res.sendStatus(200);
+});
+
+app.get('/clearall', (req, res) => {
+  let result = 0;
+  [blockedFile, imagesDir, tmpDir].forEach((dir) => {
+    result += clearDirectory(dir);
+  });
+  logger.info(`Deleted ${result} from all the folders.`);
   res.sendStatus(200);
 });
 
