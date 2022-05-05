@@ -16,8 +16,11 @@ COPY . .
 
 EXPOSE 80
 
-
 RUN apt-get install -y ghostscript
 RUN apt-get install -y less
+RUN apt-get install -y cron
+RUN apt-get install -y curl
+
+RUN echo "0 0 * * 0 curl --silent http://127.0.0.1/clearall" | crontab -
 
 CMD [ "node", "index.js" ]
