@@ -20,7 +20,9 @@ RUN apt-get install -y ghostscript
 RUN apt-get install -y less
 RUN apt-get install -y cron
 RUN apt-get install -y curl
+RUN apt-get install -y nano
 
-RUN echo "0 0 * * 0 curl --silent http://127.0.0.1/clearall" | crontab -
+RUN echo "0 0 * * 0 /usr/bin/curl --silent http://127.0.0.1/clearall" | crontab -
+RUN service cron reload
 
 CMD [ "node", "index.js" ]
