@@ -1,0 +1,5 @@
+*.log
+/images
+/tmp
+/node_modules
+/blocked

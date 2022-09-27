@@ -49,5 +49,20 @@ This example uses pdf2jpg as the image and container name and tcp port 36000 as 
 If the service fails to start, you may need to stop Docker, remove `/var/lib/docker/network/files/local-kv.db` (or wherever Docker stores its files, e.g. `/data/docker/network/files/local-kv.db`) and try again.
 
 # Usage
+- Basic conversion of a PDF-file
 
-    curl http://127.0.0.1:36000?url=<PDF url>
+      http://127.0.0.1:36000/convert?url=<PDF url>
+
+- Other options are:
+
+      /clearblocks Empties blocked URLs directory
+      /clearpdf Empties PDF directory
+      /clearimg Empties generated images directory
+      /clearall Empties all the directories
+
+- For debug purposes:
+
+      /status Displays OK if everything is going fine
+      /errorlog Allows to download the error log file
+      /infolog Allows to download the info log file
+      /kill Useful for restarting the docker, if instanciated as a service.
