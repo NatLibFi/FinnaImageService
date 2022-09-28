@@ -14,6 +14,17 @@ const myFormat = printf(({ level, message, label, timestamp }) => {
   return `{"${timestamp}" "${level}": "${message}"}`;
 });
 
+// Override PDFImage constructor, to prevent any remote attacks
+function safePDFImage(pdfFilePath, options) {
+  const filter_chars = /[!";|`$()&<>]/;
+  if (filter_chars.test(pdfFilePath)) {
+    return;
+  }
+  PDFImage.call(this, pdfFilePath, options);
+}
+safePDFImage.prototype = Object.create(PDFImage.prototype);
+safePDFImage.prototype.constructor = safePDFImage;
+
 let port = 80;
 process.argv.forEach((arg) => {
   const splitted = arg.split('=');
@@ -153,7 +164,7 @@ const stringIsAValidUrl = (s) => {
  * @param {object} res 
  */
 function convertPDFtoJpg(source, destination, res) {
-  const pdf = new PDFImage(source, {
+  const pdf = new safePDFImage(source, {
     convertOptions: {
       "-define": "PDF:use-cropbox=true",
       "-strip": '',
