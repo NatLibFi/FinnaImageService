@@ -169,6 +169,7 @@ function convertPDFtoJpg(source, destination, res) {
       "-define": "PDF:use-cropbox=true",
       "-strip": '',
       "-compress": 'JPEG',
+      "-alpha": 'remove',
       "-write": destination
     }
   });
