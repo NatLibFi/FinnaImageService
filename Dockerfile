@@ -23,6 +23,7 @@ RUN apt-get install -y curl
 RUN apt-get install -y nano
 
 RUN echo "0 0 * * 0 /usr/bin/curl --silent http://127.0.0.1/clearall" | crontab -
-RUN service cron restart
 
-CMD [ "node", "index.js" ]
+RUN chmod +x start.sh
+
+CMD [ "./start.sh" ]
