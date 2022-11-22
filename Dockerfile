@@ -1,4 +1,5 @@
 FROM node:14.19.1
+# Note: If you upgrade node, ensure that any security policy doesn't prevent conversion
 RUN apt-get update
 # Create app directory
 WORKDIR /usr/src/app
