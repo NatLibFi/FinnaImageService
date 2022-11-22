@@ -1,4 +1,4 @@
-FROM node:14.21.1
+FROM node:14.19.1
 RUN apt-get update
 # Create app directory
 WORKDIR /usr/src/app
