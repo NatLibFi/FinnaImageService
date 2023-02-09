@@ -17,7 +17,20 @@ COPY . .
 
 EXPOSE 80
 
-RUN apt-get install -y ghostscript less cron curl nano
+RUN apt-get install -y less cron curl nano
+
+# Install ghostscript v10, latest release
+WORKDIR /usr/bin
+
+RUN wget https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs1000/ghostscript-10.0.0-linux-x86_64.tgz
+
+RUN tar -zxvf ghostscript-10.0.0-linux-x86_64.tgz && rm ghostscript-10.0.0-linux-x86_64.tgz
+
+RUN cp ghostscript-10.0.0-linux-x86_64/gs-1000-linux-x86_64 /usr/bin/gs
+# Add rights to use ghostscript
+RUN chmod +rwx /usr/bin/gs
+
+WORKDIR /usr/src/app
 
 RUN echo "0 0 * * 0 /usr/bin/curl --silent http://127.0.0.1/clearall" | crontab -
 
