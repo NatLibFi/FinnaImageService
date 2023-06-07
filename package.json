@@ -21,7 +21,8 @@
     "express": "4.17.3",
     "node-fetch": "3.2.10",
     "pdf-image": "2.0.0",
-    "winston": "3.6.0"
+    "winston": "3.6.0",
+    "winston-daily-rotate-file": "4.7.1"
   },
   "type": "module"
 }

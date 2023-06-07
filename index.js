@@ -7,6 +7,7 @@ import {fileURLToPath, URL} from 'url';
 import {PDFImage} from 'pdf-image';
 import winston from 'winston';
 import childProcess from 'child_process';
+import 'winston-daily-rotate-file';
 
 const { combine, timestamp, printf } = winston.format;
 
@@ -42,8 +43,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const imagesDir = path.join(__dirname, 'images');
+const logs = path.join(__dirname, 'logs');
 const tmpDir = path.join(__dirname, 'tmp');
 const blockedFile = path.join(__dirname, 'blocked');
+
+const fileRotateTransport = new winston.transports.DailyRotateFile({
+  filename: "logs/log-%DATE%.log",
+  datePattern: "YYYY-MM-DD",
+  maxFiles: "4d"
+});
 
 const logger = winston.createLogger({
   level: 'info',
@@ -53,8 +61,7 @@ const logger = winston.createLogger({
   ),
   defaultMeta: {service: 'pdf-to-image'},
   transports: [
-    new winston.transports.File({filename: 'error.log', level: 'error'}),
-    new winston.transports.File({filename: 'info.log', level: 'info'})
+    fileRotateTransport
   ]
 });
 
@@ -67,6 +74,9 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Be sure images directory exists
+if (!fs.existsSync(logs)) {
+  fs.mkdirSync(logs);
+}
 if (!fs.existsSync(imagesDir)) {
   fs.mkdirSync(imagesDir);
 }
@@ -268,12 +278,15 @@ app.get('/status', (req, res) => {
   res.sendStatus(200);
 });
 
-app.get('/infolog', (req, res) => {
-  res.download('./info.log');
-});
-
-app.get('/errorlog', (req, res) => {
-  res.download('./error.log');
+app.get('/log', (req, res) => {
+  if (typeof req.query.file !== 'undefined') {
+    const logFile = `${logs}/${req.query.file}`;
+    if (fs.existsSync(logFile)) {
+      res.download(logFile);
+    } else {
+      res.sendStatus(404);
+    }
+  }
 });
 
 app.get('/kill', (req, res) => {
