@@ -63,6 +63,5 @@ If the service fails to start, you may need to stop Docker, remove `/var/lib/doc
 - For debug purposes:
 
       /status Displays OK if everything is going fine
-      /errorlog Allows to download the error log file
-      /infolog Allows to download the info log file
+      /log Download a logfile, log files are saved for 4 days. usage = /log?file=log-yyyy-mm-dd.log
       /kill Useful for restarting the docker, if instanciated as a service.

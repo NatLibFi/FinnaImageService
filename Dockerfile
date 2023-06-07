@@ -1,4 +1,4 @@
-FROM node:14.19.1
+FROM node:20-bullseye
 # Note: If you upgrade node, ensure that any security policy doesn't prevent conversion
 RUN apt-get update
 # Create app directory
@@ -17,7 +17,7 @@ COPY . .
 
 EXPOSE 80
 
-RUN apt-get install -y less cron curl nano
+RUN apt-get install -y less curl nano
 
 # Install ghostscript v10, latest release
 WORKDIR /usr/bin
@@ -32,8 +32,9 @@ RUN chmod +rwx /usr/bin/gs
 
 WORKDIR /usr/src/app
 
-RUN echo "0 0 * * 0 /usr/bin/curl --silent http://127.0.0.1/clearall" | crontab -
-
+# Copy sample policy file with edits for imagemagick
+RUN cp policy.xml.sample /etc/ImageMagick-6/policy.xml
+ 
 RUN chmod +x start.sh
 
 CMD [ "./start.sh" ]
