@@ -282,7 +282,6 @@ app.get('/status', (req, res) => {
 app.get('/log', (req, res) => {
   if (typeof req.query.file !== 'undefined') {
     const logFile = `${logs}/${req.query.file}`;
-    console.log(logFile);
     if (fs.existsSync(logFile)) {
       res.download(logFile);
     } else {
