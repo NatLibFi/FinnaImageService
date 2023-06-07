@@ -8,7 +8,6 @@ import {PDFImage} from 'pdf-image';
 import winston from 'winston';
 import childProcess from 'child_process';
 import 'winston-daily-rotate-file';
-import { log } from 'console';
 
 const { combine, timestamp, printf } = winston.format;
 
@@ -288,10 +287,6 @@ app.get('/log', (req, res) => {
       res.sendStatus(404);
     }
   }
-});
-
-app.get('/errorlog', (req, res) => {
-  res.download('./error.log');
 });
 
 app.get('/kill', (req, res) => {
