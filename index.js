@@ -121,7 +121,7 @@ function downloadFile(fileUrl, destPath) {
             });
             res.body.pipe(fileStream);
           }
-      });
+      }).catch((error) => reject('Fetch failed.'));
   });
 }
 
