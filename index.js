@@ -166,6 +166,10 @@ const stringIsAValidUrl = (s) => {
   }
 };
 
+function isPDFValid(buf) {
+  return Buffer.isBuffer(buf) && buf.lastIndexOf("%PDF-") === 0 && buf.lastIndexOf("%%EOF") > -1;
+}
+
 /**
  * Convert pdf to jpg and send status
  *
@@ -174,13 +178,19 @@ const stringIsAValidUrl = (s) => {
  * @param {object} res 
  */
 function convertPDFtoJpg(source, destination, res) {
+  // Check that the file is not corrupted
+  const file = fs.readFileSync(source);
+  if (!isPDFValid(file)) {
+    throw new Error('File was corrupted');
+  }
+
   const pdf = new safePDFImage(source, {
     convertOptions: {
       "-define": "PDF:use-cropbox=true",
       "-strip": '',
       "-compress": 'JPEG',
       "-alpha": 'remove',
-      "-write": destination
+      "-write": destination,
     }
   });
   pdf.convertPage(0).then((savedFile) => {
