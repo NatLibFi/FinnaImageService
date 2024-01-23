@@ -27,6 +27,8 @@ safePDFImage.prototype = Object.create(PDFImage.prototype);
 safePDFImage.prototype.constructor = safePDFImage;
 
 let port = 80;
+let maxFailures = 40;
+let currentFailures = 0;
 process.argv.forEach((arg) => {
   const splitted = arg.split('=');
   if (splitted.length === 2) {
@@ -34,6 +36,9 @@ process.argv.forEach((arg) => {
     switch (cmd) {
       case 'port':
         port = parseInt(splitted[1]);
+        break;
+      case 'maxFailures':
+        maxFailures = parseInt(splitted[1]);
         break;
     }
   }
@@ -166,21 +171,35 @@ const stringIsAValidUrl = (s) => {
   }
 };
 
+function isPDFValid(buf) {
+  return Buffer.isBuffer(buf) && buf.lastIndexOf("%PDF-") === 0 && buf.lastIndexOf("%%EOF") > -1;
+}
+
 /**
  * Convert pdf to jpg and send status
  *
  * @param {string} source 
  * @param {string} destination 
+ * @param {string} url
  * @param {object} res 
  */
-function convertPDFtoJpg(source, destination, res) {
+function convertPDFtoJpg(source, destination, url, res) {
+  // Check that the file is not corrupted
+  const file = fs.readFileSync(source);
+  if (!isPDFValid(file)) {
+    const error = new Error(`Error validating PDF`);
+    error.message = `${url} was not a proper pdf.`;
+    error.code = 500;
+    throw error;
+  }
+
   const pdf = new safePDFImage(source, {
     convertOptions: {
       "-define": "PDF:use-cropbox=true",
       "-strip": '',
       "-compress": 'JPEG',
       "-alpha": 'remove',
-      "-write": destination
+      "-write": destination,
     }
   });
   pdf.convertPage(0).then((savedFile) => {
@@ -189,6 +208,7 @@ function convertPDFtoJpg(source, destination, res) {
     removeFile(source);
   }, (reason) => {
     res.sendStatus(404);
+    currentFailures++;
     logger.error(`Failed to convert PDF into a jpg file. Reason: ${reason.message} / ${reason.error}`);
   });
 }
@@ -207,11 +227,14 @@ app.get('/convert', (req, res) => {
     logger.info(`Convert request: ${url},${fileName},${imagePath}`);
     if (!fs.existsSync(imagePath)) {
       const tmpPath = `${tmpDir}/${fileName}.pdf`;
-      const response = downloadFile(url, tmpPath).then((reason, error) => {
-        convertPDFtoJpg(tmpPath, imagePath, res);
-      });
-      response.catch((error) => {
-        logger.error(error);
+      downloadFile(url, tmpPath).then((reason, error) => {
+        convertPDFtoJpg(tmpPath, imagePath, url, res);
+        if (currentFailures > maxFailures) {
+          // Kill the process so systemctl can handle the restart.
+          process.exit();
+        }
+      }).catch((error) => {
+        logger.error(error.message);
         // Lets block this url for the future and remove it also.
         removeFile(tmpPath);
         fs.writeFile(blockPath, '1', { flag: 'wx' }, function (err) {
