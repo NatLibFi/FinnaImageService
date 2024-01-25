@@ -1,12 +1,10 @@
 import express from 'express';
 import MD5 from "crypto-js/md5.js";
 import fs from 'fs';
-import fetch from 'node-fetch';
+import {spawn} from 'child_process';
 import path from 'path';
 import {fileURLToPath, URL} from 'url';
-import {PDFImage} from 'pdf-image';
 import winston from 'winston';
-import childProcess from 'child_process';
 import 'winston-daily-rotate-file';
 
 const { combine, timestamp, printf } = winston.format;
@@ -15,16 +13,7 @@ const myFormat = printf(({ level, message, label, timestamp }) => {
   return `{"${timestamp}" "${level}": "${message}"}`;
 });
 
-// Override PDFImage constructor, to prevent any remote attacks
-function safePDFImage(pdfFilePath, options) {
-  const filter_chars = /[!";|`$()&<>]/;
-  if (filter_chars.test(pdfFilePath)) {
-    return;
-  }
-  PDFImage.call(this, pdfFilePath, options);
-}
-safePDFImage.prototype = Object.create(PDFImage.prototype);
-safePDFImage.prototype.constructor = safePDFImage;
+
 
 let port = 80;
 let maxFailures = 40;
@@ -94,43 +83,6 @@ if (!fs.existsSync(blockedFile)) {
 const app = express();
 
 /**
- * Download a file.
- * 
- * @param {string} fileUrl 
- * @param {string} destPath 
- */
-function downloadFile(fileUrl, destPath) {
-  if (!fileUrl) return Promise.reject(new Error('Invalid fileUrl'));
-  if (!destPath) return Promise.reject(new Error('Invalid destPath'));
-
-  return new Promise((resolve, reject) => {
-      fetch(fileUrl).then((res) => {
-          if (fs.existsSync(destPath)) {
-            resolve(true);
-          } else {
-            const fileStream = fs.createWriteStream(destPath);
-            const altered = Object.fromEntries(Array.from(res.headers));
-            res.body.on('error', reject);
-            fileStream.on('finish', () => {
-              let contentType = altered['content-type'] || '';
-              contentType = contentType.toLowerCase();
-              if (contentType.includes('application/pdf') ) {
-                return resolve(true);
-              } else if (contentType.length === 0) {
-                contentType = childProcess.execSync('file --mime-type -b "' + destPath + '"').toString();
-                if (contentType.trim() === 'application/pdf') {
-                  return resolve(true);
-                }
-              }
-              reject('Loaded file is not a pdf');
-            });
-            res.body.pipe(fileStream);
-          }
-      }).catch((error) => reject('Fetch failed.'));
-  });
-}
-
-/**
  * Send the file back to client
  *
  * @param {object} res 
@@ -138,7 +90,6 @@ function downloadFile(fileUrl, destPath) {
  */
 function sendResult(res, file) {
   res.download(file);
-  logger.info(`Image sent: ${file}`);
 }
 
 /**
@@ -171,46 +122,47 @@ const stringIsAValidUrl = (s) => {
   }
 };
 
-function isPDFValid(buf) {
-  return Buffer.isBuffer(buf) && buf.lastIndexOf("%PDF-") === 0 && buf.lastIndexOf("%%EOF") > -1;
-}
-
 /**
- * Convert pdf to jpg and send status
+ * Create an asynchronous function to create a child process to handle the PDF conversion
  *
- * @param {string} source 
- * @param {string} destination 
- * @param {string} url
- * @param {object} res 
+ * @param {*} url 
+ * @param {*} fileName 
+ * @param {*} imagePath 
+ * @returns 
  */
-function convertPDFtoJpg(source, destination, url, res) {
-  // Check that the file is not corrupted
-  const file = fs.readFileSync(source);
-  if (!isPDFValid(file)) {
-    const error = new Error(`Error validating PDF`);
-    error.message = `${url} was not a proper pdf.`;
-    error.code = 500;
-    throw error;
-  }
-
-  const pdf = new safePDFImage(source, {
-    convertOptions: {
-      "-define": "PDF:use-cropbox=true",
-      "-strip": '',
-      "-compress": 'JPEG',
-      "-alpha": 'remove',
-      "-write": destination,
+async function spawnChild(url, fileName, imagePath) {
+  // We got everything, lets fork
+  var worker = spawn(
+    'node',
+    ['handle_conversion.js',url,fileName,imagePath,tmpDir],
+    {
+      stdio: [null, null, null, 'ipc']
     }
+  );
+  let result = {};
+  worker.on('message', function(data) {
+    if (!data.success) {
+      logger.error(`${data.message}`);
+      fs.writeFile(blockPath, '1', { flag: 'wx' }, function (err) {
+        if (err) {
+          logger.error(`Error creating block file: ${blockPath}. Reason: ${err.message}`);
+        }
+      });
+    }
+    result = Object.assign({}, data);
   });
-  pdf.convertPage(0).then((savedFile) => {
-    sendResult(res, destination);
-    removeFile(savedFile);
-    removeFile(source);
-  }, (reason) => {
-    res.sendStatus(404);
-    currentFailures++;
-    logger.error(`Failed to convert PDF into a jpg file. Reason: ${reason.message} / ${reason.error}`);
+  const error = '';
+  worker.on('error', function(data) {
+    throw data;
   });
+  const exitCode = await new Promise((resolve, reject) => {
+    worker.on('close', resolve);
+  });
+
+  if (exitCode) {
+    throw new Error(`Error: Subprocess exit: ${exitCode}, ${error}`);
+  }
+  return result;
 }
 
 app.get('/convert', (req, res) => {
@@ -220,30 +172,24 @@ app.get('/convert', (req, res) => {
     // If blocked, return proper header
     const imagePath = `${imagesDir}/${fileName}.jpg`;
     const blockPath = `${blockedFile}/${fileName}`;
+    logger.info(`Image request: ${url}`);
     if (fs.existsSync(blockPath)) {
       res.sendStatus(400);
       return;
     }
-    logger.info(`Convert request: ${url},${fileName},${imagePath}`);
     if (!fs.existsSync(imagePath)) {
-      const tmpPath = `${tmpDir}/${fileName}.pdf`;
-      downloadFile(url, tmpPath).then((reason, error) => {
-        convertPDFtoJpg(tmpPath, imagePath, url, res);
-        if (currentFailures > maxFailures) {
-          // Kill the process so systemctl can handle the restart.
-          process.exit();
-        }
-      }).catch((error) => {
-        logger.error(error.message);
-        // Lets block this url for the future and remove it also.
-        removeFile(tmpPath);
-        fs.writeFile(blockPath, '1', { flag: 'wx' }, function (err) {
-          if (err) {
-            logger.error(`Error creating block file: ${blockPath}. Reason: ${err.message}`);
+      spawnChild(url, fileName, imagePath).then(
+        data => {
+          if (data.success) {
+            logger.info(`Image sent: ${url}`);
+            sendResult(res, imagePath);
+          } else {
+            logger.error(`Image failed: ${url}`);
+            res.sendStatus(400);
           }
-        });
-        res.sendStatus(400);
-      });
+        },
+        error => {console.log(error)}
+      )
     } else {
       sendResult(res, imagePath);
     }
