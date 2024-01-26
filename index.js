@@ -146,12 +146,8 @@ async function spawnChild(url, fileName, imagePath) {
     }
     result = Object.assign({}, data);
   });
-  const error = '';
-  worker.on('error', function(data) {
 
-  });
   let exitCode = 'still_running';
-
   const to = setTimeout(() => {
       console.log(exitCode);
       if (exitCode === 'still_running') {
@@ -160,7 +156,6 @@ async function spawnChild(url, fileName, imagePath) {
     },
     10000
   );
-
   exitCode = await new Promise((resolve, reject) => {
     worker.on('close', resolve);
   });
