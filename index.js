@@ -110,7 +110,6 @@ const stringIsAValidUrl = (s) => {
     new URL(s);
     return true;
   } catch (err) {
-    logger.error(`URL is not valid: ${s}`);
     return false;
   }
 };
