@@ -13,13 +13,14 @@ function isPDFValid(buf) {
   return Buffer.isBuffer(buf) && buf.lastIndexOf("%PDF-") === 0 && buf.lastIndexOf("%%EOF") > -1;
 }
 
-function formatMessageToParent(success, message, code) {
+function formatMessageToParent(success, message, code, log) {
   if (process && process.send) {
     process.send(
       {
         success,
         message,
-        code
+        code,
+        log
       }
     );
   };
@@ -47,29 +48,31 @@ function downloadFile(fileUrl, destPath) {
   if (!destPath) return Promise.reject(new Error('Invalid destPath'));
 
   return new Promise((resolve, reject) => {
-      fetch(fileUrl).then((res) => {
-          if (fs.existsSync(destPath)) {
-            resolve(true);
-          } else {
-            const fileStream = fs.createWriteStream(destPath);
-            const altered = Object.fromEntries(Array.from(res.headers));
-            res.body.on('error', reject);
-            fileStream.on('finish', () => {
-              let contentType = altered['content-type'] || '';
-              contentType = contentType.toLowerCase();
-              if (contentType.includes('application/pdf') ) {
-                return resolve(true);
-              } else if (contentType.length === 0) {
-                contentType = childProcess.execSync('file --mime-type -b "' + destPath + '"').toString();
-                if (contentType.trim() === 'application/pdf') {
-                  return resolve(true);
-                }
-              }
-              reject({message: 'Loaded file is not a pdf'});
-            });
-            res.body.pipe(fileStream);
+    fetch(fileUrl).then((res) => {
+      if (fs.existsSync(destPath)) {
+        resolve(true);
+      } else {
+        const fileStream = fs.createWriteStream(destPath);
+        const altered = Object.fromEntries(Array.from(res.headers));
+        res.body.on('error', reject);
+        fileStream.on('finish', () => {
+          let contentType = altered['content-type'] || '';
+          contentType = contentType.toLowerCase();
+          if (contentType.includes('application/pdf') ) {
+            return resolve(true);
+          } else if (contentType.length === 0) {
+            contentType = childProcess.execSync('file --mime-type -b "' + destPath + '"').toString();
+            if (contentType.trim() === 'application/pdf') {
+              return resolve(true);
+            }
           }
-      }).catch((error) => reject(error));
+          reject({message: 'Loaded file is not a pdf'});
+        });
+        res.body.pipe(fileStream);
+      }
+    }).catch((error) => {
+      reject(error)
+    });
   });
 }
 
@@ -103,10 +106,7 @@ function convertPDFtoJpg(source, destination, url) {
     // This should signal that everything went fine.
     formatMessageToParent(true, `${url} image conversion success.`, 0);
   }, (reason) => {
-    const error = new Error('Converting PDF failed.');
-    error.message = `Failed to convert PDF into a jpg file. Reason: ${reason.message} / ${reason.error}`;
-    error.code = 1;
-    throw error;
+    formatMessageToParent(false, `Failed to convert PDF into a jpg file. Reason: ${reason.message} / ${reason.error}`, 1);
   });
 }
 

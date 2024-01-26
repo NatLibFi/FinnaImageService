@@ -127,7 +127,7 @@ const stringIsAValidUrl = (s) => {
  *
  * @param {*} url 
  * @param {*} fileName 
- * @param {*} imagePath 
+ * @param {*} imagePath
  * @returns 
  */
 async function spawnChild(url, fileName, imagePath) {
@@ -141,23 +141,32 @@ async function spawnChild(url, fileName, imagePath) {
   );
   let result = {};
   worker.on('message', function(data) {
+    console.log(data);
     if (!data.success) {
       logger.error(`${data.message}`);
-      fs.writeFile(blockPath, '1', { flag: 'wx' }, function (err) {
-        if (err) {
-          logger.error(`Error creating block file: ${blockPath}. Reason: ${err.message}`);
-        }
-      });
     }
     result = Object.assign({}, data);
   });
   const error = '';
   worker.on('error', function(data) {
-    throw data;
+
   });
-  const exitCode = await new Promise((resolve, reject) => {
+  let exitCode = 'still_running';
+
+  const to = setTimeout(() => {
+      console.log(exitCode);
+      if (exitCode === 'still_running') {
+        worker.kill();
+      }
+    },
+    10000
+  );
+
+  exitCode = await new Promise((resolve, reject) => {
     worker.on('close', resolve);
   });
+
+  clearTimeout(to);
 
   if (exitCode) {
     throw new Error(`Error: Subprocess exit: ${exitCode}, ${error}`);
@@ -165,37 +174,54 @@ async function spawnChild(url, fileName, imagePath) {
   return result;
 }
 
+function createBlockFile(blockPath, message) {
+  logger.error(message);
+  fs.writeFile(blockPath, '1', { flag: 'wx' }, function (err) {
+    if (err) {
+      logger.error(`Error creating block file: ${blockPath}. Reason: ${err.message}`);
+    }
+  });
+}
+
 app.get('/convert', (req, res) => {
-  if (typeof req.query.url !== 'undefined' && stringIsAValidUrl(req.query.url)) {
-    const url = req.query.url;
-    const fileName = MD5(url);
-    // If blocked, return proper header
-    const imagePath = `${imagesDir}/${fileName}.jpg`;
-    const blockPath = `${blockedFile}/${fileName}`;
-    logger.info(`Image request: ${url}`);
-    if (fs.existsSync(blockPath)) {
-      res.sendStatus(400);
-      return;
-    }
-    if (!fs.existsSync(imagePath)) {
-      spawnChild(url, fileName, imagePath).then(
-        data => {
-          if (data.success) {
-            logger.info(`Image sent: ${url}`);
-            sendResult(res, imagePath);
-          } else {
-            logger.error(`Image failed: ${url}`);
-            res.sendStatus(400);
-          }
-        },
-        error => {console.log(error)}
-      )
-    } else {
-      sendResult(res, imagePath);
-    }
-  } else {
+  if (typeof req.query.url === 'undefined') {
     res.sendStatus(400);
+    return;
   }
+  const url = req.query.url;
+  const fileName = MD5(url);
+  const blockPath = `${blockedFile}/${fileName}`;
+  logger.info(`Image request: ${url}`);
+  if (fs.existsSync(blockPath)) {
+    res.sendStatus(400);
+    return;
+  }
+  if (!stringIsAValidUrl(url)) {
+    createBlockFile(blockPath, `${url} was not a proper url. Blocking.`);
+    res.sendStatus(400);
+    return;
+  }
+
+  const imagePath = `${imagesDir}/${fileName}.jpg`;
+  if (fs.existsSync(imagePath)) {
+    logger.info(`Image sent: ${url}`);
+    sendResult(res, imagePath);
+    return;
+  }
+  spawnChild(url, fileName, imagePath).then(
+    data => {
+      if (data.success) {
+        logger.info(`Image sent: ${url}`);
+        sendResult(res, imagePath);
+      } else {
+        createBlockFile(blockPath, `Blocking entry due to a failure: ${data.message}`);
+        res.sendStatus(400);
+      }
+    },
+    error => {
+      logger.error(error);
+    }
+  );
 });
 
 /**
