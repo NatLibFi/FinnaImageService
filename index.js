@@ -195,6 +195,7 @@ app.get('/convert', (req, res) => {
     sendResult(res, imagePath);
     return;
   }
+  const pdfPath = `${tmpDir}/${fileName}.pdf`;
   spawnChild(url, fileName, imagePath).then(
     data => {
       if (data.success) {
@@ -204,15 +205,14 @@ app.get('/convert', (req, res) => {
         createBlockFile(blockPath, `Blocking entry due to a failure: ${data.message}`);
         res.sendStatus(400);
       }
-      if (data.pdfFile) {
-        removeFile(data.pdfFile);
-      }
+      removeFile(pdfPath);
       if (data.savedFile) {
         removeFile(data.savedFile);
       }
     },
     error => {
       logger.error(error);
+      removeFile(pdfPath);
     }
   );
 });

@@ -13,15 +13,14 @@ function isPDFValid(buf) {
   return Buffer.isBuffer(buf) && buf.lastIndexOf("%PDF-") === 0 && buf.lastIndexOf("%%EOF") > -1;
 }
 
-function formatMessageToParent(success, message, code, savedFile = undefined, pdfFile = undefined) {
+function formatMessageToParent(success, message, code, savedFile = undefined) {
   if (process && process.send) {
     process.send(
       {
         success,
         message,
         code,
-        savedFile,
-        pdfFile
+        savedFile
       }
     );
   };
@@ -51,7 +50,7 @@ function downloadFile(fileUrl, destPath) {
   return new Promise((resolve, reject) => {
     fetch(fileUrl).then((res) => {
       if (fs.existsSync(destPath)) {
-        resolve(true);
+        return resolve(true);
       } else {
         const fileStream = fs.createWriteStream(destPath);
         const altered = Object.fromEntries(Array.from(res.headers));
@@ -67,12 +66,12 @@ function downloadFile(fileUrl, destPath) {
               return resolve(true);
             }
           }
-          reject({message: 'Loaded file is not a pdf'});
+          return reject({message: 'Loaded file is not a pdf'});
         });
         res.body.pipe(fileStream);
       }
     }).catch((error) => {
-      reject(error)
+      return reject(error)
     });
   });
 }
@@ -105,7 +104,7 @@ function convertPDFtoJpg(source, destination, url) {
   });
   pdf.convertPage(0).then((savedFile) => {
     // This should signal that everything went fine.
-    formatMessageToParent(true, `${url} image conversion success.`, 0, savedFile, source);
+    formatMessageToParent(true, `${url} image conversion success.`, 0, savedFile);
   }, (reason) => {
     formatMessageToParent(false, `Failed to convert PDF into a jpg file. Reason: ${reason.message} / ${reason.error}`, 1);
   });
