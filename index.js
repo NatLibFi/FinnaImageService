@@ -13,11 +13,7 @@ const myFormat = printf(({ level, message, label, timestamp }) => {
   return `{"${timestamp}" "${level}": "${message}"}`;
 });
 
-
-
 let port = 80;
-let maxFailures = 40;
-let currentFailures = 0;
 process.argv.forEach((arg) => {
   const splitted = arg.split('=');
   if (splitted.length === 2) {
@@ -25,9 +21,6 @@ process.argv.forEach((arg) => {
     switch (cmd) {
       case 'port':
         port = parseInt(splitted[1]);
-        break;
-      case 'maxFailures':
-        maxFailures = parseInt(splitted[1]);
         break;
     }
   }
@@ -210,6 +203,12 @@ app.get('/convert', (req, res) => {
       } else {
         createBlockFile(blockPath, `Blocking entry due to a failure: ${data.message}`);
         res.sendStatus(400);
+      }
+      if (data.pdfFile) {
+        removeFile(data.pdfFile);
+      }
+      if (data.savedFile) {
+        removeFile(data.savedFile);
       }
     },
     error => {

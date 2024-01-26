@@ -13,14 +13,15 @@ function isPDFValid(buf) {
   return Buffer.isBuffer(buf) && buf.lastIndexOf("%PDF-") === 0 && buf.lastIndexOf("%%EOF") > -1;
 }
 
-function formatMessageToParent(success, message, code, log) {
+function formatMessageToParent(success, message, code, savedFile = undefined, pdfFile = undefined) {
   if (process && process.send) {
     process.send(
       {
         success,
         message,
         code,
-        log
+        savedFile,
+        pdfFile
       }
     );
   };
@@ -104,7 +105,7 @@ function convertPDFtoJpg(source, destination, url) {
   });
   pdf.convertPage(0).then((savedFile) => {
     // This should signal that everything went fine.
-    formatMessageToParent(true, `${url} image conversion success.`, 0);
+    formatMessageToParent(true, `${url} image conversion success.`, 0, savedFile, source);
   }, (reason) => {
     formatMessageToParent(false, `Failed to convert PDF into a jpg file. Reason: ${reason.message} / ${reason.error}`, 1);
   });
