@@ -141,7 +141,6 @@ async function spawnChild(url, fileName, imagePath) {
   );
   let result = {};
   worker.on('message', function(data) {
-    console.log(data);
     if (!data.success) {
       logger.error(`${data.message}`);
     }
