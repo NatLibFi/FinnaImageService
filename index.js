@@ -201,7 +201,7 @@ app.get('/convert', (req, res) => {
         logger.info(`Image sent: ${url}`);
         sendResult(res, imagePath);
       } else {
-        createBlockFile(blockPath, `Blocking entry due to a failure: ${data.message}`);
+        createBlockFile(blockPath, `Blocking ${url} due to a failure: ${data.message}`);
         res.sendStatus(400);
       }
       removeFile(pdfPath);
