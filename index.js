@@ -1,12 +1,10 @@
 import express from 'express';
 import MD5 from "crypto-js/md5.js";
 import fs from 'fs';
-import fetch from 'node-fetch';
+import {spawn} from 'child_process';
 import path from 'path';
 import {fileURLToPath, URL} from 'url';
-import {PDFImage} from 'pdf-image';
 import winston from 'winston';
-import childProcess from 'child_process';
 import 'winston-daily-rotate-file';
 
 const { combine, timestamp, printf } = winston.format;
@@ -15,20 +13,7 @@ const myFormat = printf(({ level, message, label, timestamp }) => {
   return `{"${timestamp}" "${level}": "${message}"}`;
 });
 
-// Override PDFImage constructor, to prevent any remote attacks
-function safePDFImage(pdfFilePath, options) {
-  const filter_chars = /[!";|`$()&<>]/;
-  if (filter_chars.test(pdfFilePath)) {
-    return;
-  }
-  PDFImage.call(this, pdfFilePath, options);
-}
-safePDFImage.prototype = Object.create(PDFImage.prototype);
-safePDFImage.prototype.constructor = safePDFImage;
-
 let port = 80;
-let maxFailures = 40;
-let currentFailures = 0;
 process.argv.forEach((arg) => {
   const splitted = arg.split('=');
   if (splitted.length === 2) {
@@ -36,9 +21,6 @@ process.argv.forEach((arg) => {
     switch (cmd) {
       case 'port':
         port = parseInt(splitted[1]);
-        break;
-      case 'maxFailures':
-        maxFailures = parseInt(splitted[1]);
         break;
     }
   }
@@ -94,43 +76,6 @@ if (!fs.existsSync(blockedFile)) {
 const app = express();
 
 /**
- * Download a file.
- * 
- * @param {string} fileUrl 
- * @param {string} destPath 
- */
-function downloadFile(fileUrl, destPath) {
-  if (!fileUrl) return Promise.reject(new Error('Invalid fileUrl'));
-  if (!destPath) return Promise.reject(new Error('Invalid destPath'));
-
-  return new Promise((resolve, reject) => {
-      fetch(fileUrl).then((res) => {
-          if (fs.existsSync(destPath)) {
-            resolve(true);
-          } else {
-            const fileStream = fs.createWriteStream(destPath);
-            const altered = Object.fromEntries(Array.from(res.headers));
-            res.body.on('error', reject);
-            fileStream.on('finish', () => {
-              let contentType = altered['content-type'] || '';
-              contentType = contentType.toLowerCase();
-              if (contentType.includes('application/pdf') ) {
-                return resolve(true);
-              } else if (contentType.length === 0) {
-                contentType = childProcess.execSync('file --mime-type -b "' + destPath + '"').toString();
-                if (contentType.trim() === 'application/pdf') {
-                  return resolve(true);
-                }
-              }
-              reject('Loaded file is not a pdf');
-            });
-            res.body.pipe(fileStream);
-          }
-      }).catch((error) => reject('Fetch failed.'));
-  });
-}
-
-/**
  * Send the file back to client
  *
  * @param {object} res 
@@ -138,7 +83,6 @@ function downloadFile(fileUrl, destPath) {
  */
 function sendResult(res, file) {
   res.download(file);
-  logger.info(`Image sent: ${file}`);
 }
 
 /**
@@ -166,90 +110,110 @@ const stringIsAValidUrl = (s) => {
     new URL(s);
     return true;
   } catch (err) {
-    logger.error(`URL is not valid: ${s}`);
     return false;
   }
 };
 
-function isPDFValid(buf) {
-  return Buffer.isBuffer(buf) && buf.lastIndexOf("%PDF-") === 0 && buf.lastIndexOf("%%EOF") > -1;
+/**
+ * Create an asynchronous function to create a child process to handle the PDF conversion
+ *
+ * @param {*} url 
+ * @param {*} fileName 
+ * @param {*} imagePath
+ * @returns 
+ */
+async function spawnChild(url, fileName, imagePath) {
+  // We got everything, lets fork
+  var worker = spawn(
+    'node',
+    ['handle_conversion.js',url,fileName,imagePath,tmpDir],
+    {
+      stdio: [null, null, null, 'ipc']
+    }
+  );
+  let result = {};
+  worker.on('message', function(data) {
+    if (!data.success) {
+      logger.error(`${data.message}`);
+    }
+    result = Object.assign({}, data);
+  });
+
+  let exitCode = 'still_running';
+  const to = setTimeout(() => {
+      console.log(exitCode);
+      if (exitCode === 'still_running') {
+        worker.kill();
+      }
+    },
+    10000
+  );
+  exitCode = await new Promise((resolve, reject) => {
+    worker.on('close', resolve);
+  });
+
+  clearTimeout(to);
+
+  if (exitCode) {
+    throw new Error(`Error: Subprocess exit: ${exitCode}, ${error}`);
+  }
+  return result;
 }
 
-/**
- * Convert pdf to jpg and send status
- *
- * @param {string} source 
- * @param {string} destination 
- * @param {string} url
- * @param {object} res 
- */
-function convertPDFtoJpg(source, destination, url, res) {
-  // Check that the file is not corrupted
-  const file = fs.readFileSync(source);
-  if (!isPDFValid(file)) {
-    const error = new Error(`Error validating PDF`);
-    error.message = `${url} was not a proper pdf.`;
-    error.code = 500;
-    throw error;
-  }
-
-  const pdf = new safePDFImage(source, {
-    convertOptions: {
-      "-define": "PDF:use-cropbox=true",
-      "-strip": '',
-      "-compress": 'JPEG',
-      "-alpha": 'remove',
-      "-write": destination,
+function createBlockFile(blockPath, message) {
+  logger.error(message);
+  fs.writeFile(blockPath, '1', { flag: 'wx' }, function (err) {
+    if (err) {
+      logger.error(`Error creating block file: ${blockPath}. Reason: ${err.message}`);
     }
-  });
-  pdf.convertPage(0).then((savedFile) => {
-    sendResult(res, destination);
-    removeFile(savedFile);
-    removeFile(source);
-  }, (reason) => {
-    res.sendStatus(404);
-    currentFailures++;
-    logger.error(`Failed to convert PDF into a jpg file. Reason: ${reason.message} / ${reason.error}`);
   });
 }
 
 app.get('/convert', (req, res) => {
-  if (typeof req.query.url !== 'undefined' && stringIsAValidUrl(req.query.url)) {
-    const url = req.query.url;
-    const fileName = MD5(url);
-    // If blocked, return proper header
-    const imagePath = `${imagesDir}/${fileName}.jpg`;
-    const blockPath = `${blockedFile}/${fileName}`;
-    if (fs.existsSync(blockPath)) {
-      res.sendStatus(400);
-      return;
-    }
-    logger.info(`Convert request: ${url},${fileName},${imagePath}`);
-    if (!fs.existsSync(imagePath)) {
-      const tmpPath = `${tmpDir}/${fileName}.pdf`;
-      downloadFile(url, tmpPath).then((reason, error) => {
-        convertPDFtoJpg(tmpPath, imagePath, url, res);
-        if (currentFailures > maxFailures) {
-          // Kill the process so systemctl can handle the restart.
-          process.exit();
-        }
-      }).catch((error) => {
-        logger.error(error.message);
-        // Lets block this url for the future and remove it also.
-        removeFile(tmpPath);
-        fs.writeFile(blockPath, '1', { flag: 'wx' }, function (err) {
-          if (err) {
-            logger.error(`Error creating block file: ${blockPath}. Reason: ${err.message}`);
-          }
-        });
-        res.sendStatus(400);
-      });
-    } else {
-      sendResult(res, imagePath);
-    }
-  } else {
+  if (typeof req.query.url === 'undefined') {
     res.sendStatus(400);
+    return;
   }
+  const url = req.query.url;
+  const fileName = MD5(url);
+  const blockPath = `${blockedFile}/${fileName}`;
+  logger.info(`Image request: ${url}`);
+  if (fs.existsSync(blockPath)) {
+    res.sendStatus(400);
+    return;
+  }
+  if (!stringIsAValidUrl(url)) {
+    createBlockFile(blockPath, `${url} was not a proper url. Blocking.`);
+    res.sendStatus(400);
+    return;
+  }
+
+  const imagePath = `${imagesDir}/${fileName}.jpg`;
+  if (fs.existsSync(imagePath)) {
+    logger.info(`Image sent: ${url}`);
+    sendResult(res, imagePath);
+    return;
+  }
+  const pdfPath = `${tmpDir}/${fileName}.pdf`;
+  spawnChild(url, fileName, imagePath).then(
+    data => {
+      if (data.success) {
+        logger.info(`Image sent: ${url}`);
+        sendResult(res, imagePath);
+      } else {
+        createBlockFile(blockPath, `Blocking ${url} due to a failure: ${data.message}`);
+        res.sendStatus(400);
+      }
+      removeFile(pdfPath);
+      if (data.savedFile) {
+        removeFile(data.savedFile);
+      }
+    },
+    error => {
+      logger.error(error);
+      removeFile(pdfPath);
+    }
+  );
 });
 
 /**
