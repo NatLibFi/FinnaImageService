@@ -18,7 +18,7 @@
   "homepage": "https://github.com/NatLibFi/FinnaImageService#readme",
   "dependencies": {
     "crypto-js": "4.1.1",
-    "express": "4.17.3",
+    "express": "4.19.2",
     "node-fetch": "3.2.10",
     "pdf-image": "2.0.0",
     "winston": "3.6.0",
