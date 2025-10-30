@@ -16,9 +16,6 @@
     "url": "https://github.com/NatLibFi/FinnaImageService/issues"
   },
   "homepage": "https://github.com/NatLibFi/FinnaImageService#readme",
-  "engines": {
-    "node": "22.x"
-  },
   "dependencies": {
     "express": "5.1.0",
     "pdf-image": "2.0.0",
