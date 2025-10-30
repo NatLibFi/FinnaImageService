@@ -17,12 +17,16 @@
   },
   "homepage": "https://github.com/NatLibFi/FinnaImageService#readme",
   "dependencies": {
-    "crypto-js": "4.1.1",
-    "express": "4.17.3",
-    "node-fetch": "3.2.10",
+    "express": "5.1.0",
     "pdf-image": "2.0.0",
     "winston": "3.6.0",
     "winston-daily-rotate-file": "4.7.1"
   },
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "@eslint/js": "9.38.0",
+    "eslint": "9.38.0",
+    "eslint-plugin-jsdoc": "61.1.11",
+    "globals": "16.4.0"
+  }
 }

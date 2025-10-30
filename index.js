@@ -1,15 +1,17 @@
 import express from 'express';
-import MD5 from "crypto-js/md5.js";
+import crypto from 'crypto';
 import fs from 'fs';
 import {spawn} from 'child_process';
+import process from 'node:process';
 import path from 'path';
 import {fileURLToPath, URL} from 'url';
 import winston from 'winston';
 import 'winston-daily-rotate-file';
+import { response } from 'express';
 
 const { combine, timestamp, printf } = winston.format;
 
-const myFormat = printf(({ level, message, label, timestamp }) => {
+const myFormat = printf(({ level, message, /*label*/ timestamp }) => {
   return `{"${timestamp}" "${level}": "${message}"}`;
 });
 
@@ -76,21 +78,22 @@ if (!fs.existsSync(blockedFile)) {
 const app = express();
 
 /**
- * Send the file back to client
- *
- * @param {object} res 
- * @param {string} file 
+ * Send the file back to client.
+ * @param {response} res Response object.
+ * @param {string} file File path to send to client.
  */
 function sendResult(res, file) {
   res.download(file);
 }
 
 /**
- * Remove file from the given path.
- *
- * @param {string} file 
+ * Remove file.
+ * @param {string} file File to remove.
  */
 function removeFile(file) {
+  if (!fs.existsSync(file)) {
+    return;
+  }
   fs.unlink(file, err => {
     if (err) {
       logger.error(`Error removing file: ${file}. Reason: ${err.message}`);
@@ -99,28 +102,26 @@ function removeFile(file) {
 }
 
 /**
- * If the given url is valid.
- * 
- * @param {string} s 
- * 
- * @returns {boolean} is the url valid or not.
+ * Is the given string a valid URL.
+ * @param {string} s String to validate.
+ * @returns {boolean} True if the string is a valid URL.
  */
 const stringIsAValidUrl = (s) => {
   try {
     new URL(s);
     return true;
   } catch (err) {
+    logger.error(`Not a valid URL: ${s}. Blocking. Reason: ${err.message}`);
     return false;
   }
 };
 
 /**
- * Create an asynchronous function to create a child process to handle the PDF conversion
- *
- * @param {*} url 
- * @param {*} fileName 
- * @param {*} imagePath
- * @returns 
+ * Create a child process to handle conversion of an URL.
+ * @param {string} url URL for the child process to handle.
+ * @param {string} fileName Filename for the url.
+ * @param {string} imagePath Final path for resulting image.
+ * @returns {object} Result containing data.
  */
 async function spawnChild(url, fileName, imagePath) {
   // We got everything, lets fork
@@ -148,20 +149,23 @@ async function spawnChild(url, fileName, imagePath) {
     },
     10000
   );
-  exitCode = await new Promise((resolve, reject) => {
+  exitCode = await new Promise((resolve) => {
     worker.on('close', resolve);
   });
 
   clearTimeout(to);
 
   if (exitCode) {
-    throw new Error(`Error: Subprocess exit: ${exitCode}, ${error}`);
+    throw new Error(`Error: Subprocess exit: ${exitCode}, ${result.message}`);
   }
   return result;
 }
 
-function createBlockFile(blockPath, message) {
-  logger.error(message);
+/**
+ * Create a block file for given file.
+ * @param {string} blockPath Block path.
+ */
+function createBlockFile(blockPath) {
   fs.writeFile(blockPath, '1', { flag: 'wx' }, function (err) {
     if (err) {
       logger.error(`Error creating block file: ${blockPath}. Reason: ${err.message}`);
@@ -175,15 +179,16 @@ app.get('/convert', (req, res) => {
     return;
   }
   const url = req.query.url;
-  const fileName = MD5(url);
+  const fileName = crypto.createHash('sha256', 'file').update(url).digest('hex');
   const blockPath = `${blockedFile}/${fileName}`;
   logger.info(`Image request: ${url}`);
   if (fs.existsSync(blockPath)) {
+    logger.info(`Requested URL is blocked: ${url}`);
     res.sendStatus(400);
     return;
   }
   if (!stringIsAValidUrl(url)) {
-    createBlockFile(blockPath, `${url} was not a proper url. Blocking.`);
+    createBlockFile(blockPath);
     res.sendStatus(400);
     return;
   }
@@ -201,7 +206,8 @@ app.get('/convert', (req, res) => {
         logger.info(`Image sent: ${url}`);
         sendResult(res, imagePath);
       } else {
-        createBlockFile(blockPath, `Blocking ${url} due to a failure: ${data.message}`);
+        logger.error(`Blocking ${url} due to a failure: ${data.message}`);
+        createBlockFile(blockPath);
         res.sendStatus(400);
       }
       removeFile(pdfPath);
@@ -217,10 +223,8 @@ app.get('/convert', (req, res) => {
 });
 
 /**
- * Clear given directory path of files
- *
- * @param {string} dirpath 
- * 
+ * Clear directory.
+ * @param {string} dirpath Directory path to clear.
  * @returns {number} amount of files deleted
  */
 function clearDirectory(dirpath) {
