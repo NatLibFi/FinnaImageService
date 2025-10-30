@@ -29,13 +29,13 @@ process.argv.forEach((arg) => {
 });
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(__filename) + '/../';
 
 const imagesDir = path.join(__dirname, 'images');
 const logs = path.join(__dirname, 'logs');
 const tmpDir = path.join(__dirname, 'tmp');
 const blockedFile = path.join(__dirname, 'blocked');
-const handleConversionFile = path.join(__dirname, 'handle_conversion.js');
+const handleConversionFile = path.join(path.dirname(__filename), 'handle_conversion.js');
 
 const fileRotateTransport = new winston.transports.DailyRotateFile({
   filename: "logs/log-%DATE%.log",
@@ -138,6 +138,7 @@ async function spawnChild(url, fileName, imagePath) {
     if (!data.success) {
       logger.error(`${data.message}`);
     }
+    logger.info(data.message);
     result = Object.assign({}, data);
   });
 
@@ -196,7 +197,7 @@ app.get('/convert', (req, res) => {
 
   const imagePath = `${imagesDir}/${fileName}.jpg`;
   if (fs.existsSync(imagePath)) {
-    logger.info(`Image sent: ${url}`);
+    logger.info(`1 Image sent: ${url}`);
     sendResult(res, imagePath);
     return;
   }
@@ -204,7 +205,7 @@ app.get('/convert', (req, res) => {
   spawnChild(url, fileName, imagePath).then(
     data => {
       if (data.success) {
-        logger.info(`Image sent: ${url}`);
+        logger.info(`2 Image sent: ${url}`);
         sendResult(res, imagePath);
       } else {
         logger.error(`Blocking ${url} due to a failure: ${data.message}`);
@@ -212,9 +213,6 @@ app.get('/convert', (req, res) => {
         res.sendStatus(400);
       }
       removeFile(pdfPath);
-      if (data.savedFile) {
-        removeFile(data.savedFile);
-      }
     },
     error => {
       logger.error(error);
