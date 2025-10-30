@@ -11,8 +11,8 @@ import { response } from 'express';
 
 const { combine, timestamp, printf } = winston.format;
 
-const myFormat = printf(({ level, message, /*label*/ timestamp }) => {
-  return `{"${timestamp}" "${level}": "${message}"}`;
+const myFormat = printf(({ level, message, /*label*/ _timestamp }) => {
+  return `{"${_timestamp}" "${level}": "${message}"}`;
 });
 
 let port = 80;
@@ -21,21 +21,21 @@ process.argv.forEach((arg) => {
   if (splitted.length === 2) {
     const cmd = splitted[0].toString().replace(/-/g, '');
     switch (cmd) {
-      case 'port':
-        port = parseInt(splitted[1]);
-        break;
+    case 'port':
+      port = parseInt(splitted[1]);
+      break;
     }
   }
 });
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(__filename) + '/../';
 
 const imagesDir = path.join(__dirname, 'images');
 const logs = path.join(__dirname, 'logs');
 const tmpDir = path.join(__dirname, 'tmp');
 const blockedFile = path.join(__dirname, 'blocked');
-const handleConversionFile = path.join(__dirname, 'handle_conversion.js');
+const handleConversionFile = path.join(path.dirname(__filename), 'handle_conversion.js');
 
 const fileRotateTransport = new winston.transports.DailyRotateFile({
   filename: "logs/log-%DATE%.log",
@@ -104,7 +104,7 @@ function removeFile(file) {
 
 /**
  * Is the given string a valid URL.
- * @param {string} s
+ * @param {string} s String to check.
  * @returns {boolean} True if the string is a valid URL.
  */
 const stringIsAValidUrl = (s) => {
@@ -128,13 +128,13 @@ async function spawnChild(url, fileName, imagePath) {
   // We got everything, lets fork
   var worker = spawn(
     'node',
-    [handleConversionFile,url,fileName,imagePath,tmpDir],
+    [handleConversionFile, url, fileName, imagePath, tmpDir],
     {
       stdio: [null, null, null, 'ipc']
     }
   );
   let result = {};
-  worker.on('message', function(data) {
+  worker.on('message', (data) => {
     if (!data.success) {
       logger.error(`${data.message}`);
     }
@@ -143,12 +143,11 @@ async function spawnChild(url, fileName, imagePath) {
 
   let exitCode = 'still_running';
   const to = setTimeout(() => {
-      console.log(exitCode);
-      if (exitCode === 'still_running') {
-        worker.kill();
-      }
-    },
-    10000
+    if (exitCode === 'still_running') {
+      worker.kill();
+    }
+  },
+  10000
   );
   exitCode = await new Promise((resolve) => {
     worker.on('close', resolve);
@@ -167,7 +166,7 @@ async function spawnChild(url, fileName, imagePath) {
  * @param {string} blockPath Block path.
  */
 function createBlockFile(blockPath) {
-  fs.writeFile(blockPath, '1', { flag: 'wx' }, function (err) {
+  fs.writeFile(blockPath, '1', { flag: 'wx' }, (err) => {
     if (err) {
       logger.error(`Error creating block file: ${blockPath}. Reason: ${err.message}`);
     }
@@ -196,7 +195,7 @@ app.get('/convert', (req, res) => {
 
   const imagePath = `${imagesDir}/${fileName}.jpg`;
   if (fs.existsSync(imagePath)) {
-    logger.info(`Image sent: ${url}`);
+    logger.info(`1 Image sent: ${url}`);
     sendResult(res, imagePath);
     return;
   }
@@ -204,7 +203,7 @@ app.get('/convert', (req, res) => {
   spawnChild(url, fileName, imagePath).then(
     data => {
       if (data.success) {
-        logger.info(`Image sent: ${url}`);
+        logger.info(`2 Image sent: ${url}`);
         sendResult(res, imagePath);
       } else {
         logger.error(`Blocking ${url} due to a failure: ${data.message}`);
@@ -212,9 +211,6 @@ app.get('/convert', (req, res) => {
         res.sendStatus(400);
       }
       removeFile(pdfPath);
-      if (data.savedFile) {
-        removeFile(data.savedFile);
-      }
     },
     error => {
       logger.error(error);
@@ -287,5 +283,5 @@ app.get('/kill', (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`Image service now listening to port: ${port}`);
+  process.stdout.write(`Image service now listening to port: ${port}\n`);
 });

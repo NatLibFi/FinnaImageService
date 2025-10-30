@@ -18,7 +18,7 @@
   "homepage": "https://github.com/NatLibFi/FinnaImageService#readme",
   "dependencies": {
     "express": "5.1.0",
-    "pdf-image": "2.0.0",
+    "pdf-to-img": "5.0.0",
     "winston": "3.6.0",
     "winston-daily-rotate-file": "4.7.1"
   },
