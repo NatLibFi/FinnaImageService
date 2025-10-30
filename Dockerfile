@@ -1,4 +1,4 @@
-FROM node:20-bullseye
+FROM node:25-bullseye
 # Note: If you upgrade node, ensure that any security policy doesn't prevent conversion
 RUN apt-get update
 # Create app directory

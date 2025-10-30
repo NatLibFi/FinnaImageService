@@ -1,0 +1,22 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  eslint:
+    name: Run eslint scanning
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install node dependencies
+        # Use --ignore-scripts to prevent pre/post install scripts from running
+        # (a security precaution).
+        run: npm install --ignore-scripts
+
+      - name: Run ESLint
+        run: npx eslint
+        continue-on-error: true

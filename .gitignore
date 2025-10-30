@@ -3,3 +3,8 @@
 /tmp
 /node_modules
 /blocked
+src/logs
+src/blocked
+src/images
+src/tmp
+src/node_modules

@@ -1,18 +1,25 @@
 import fs from 'fs';
-import fetch from 'node-fetch';
 import childProcess from 'child_process';
 import {PDFImage} from 'pdf-image';
+import process from 'node:process';
+import {Buffer} from 'node:buffer';
 
 /**
  * Try to check that if the given buffer is a valid pdf. Does not work 100% of the time but is good.
- *
- * @param {any} buf 
- * @returns 
+ * @param {any} buf Buffer from PDF file.
+ * @returns {boolean} If the pdf file is valid.
  */
 function isPDFValid(buf) {
   return Buffer.isBuffer(buf) && buf.lastIndexOf("%PDF-") === 0 && buf.lastIndexOf("%%EOF") > -1;
 }
 
+/**
+ * Send message from child process to parent process.
+ * @param {boolean} success If message indicates a success.
+ * @param {string} message Message string.
+ * @param {number} code Process number.
+ * @param {string|undefined} savedFile If a file was saved to a path from child process.
+ */
 function formatMessageToParent(success, message, code, savedFile = undefined) {
   if (process && process.send) {
     process.send(
@@ -26,7 +33,12 @@ function formatMessageToParent(success, message, code, savedFile = undefined) {
   };
 }
 
-// Override PDFImage constructor, to prevent any remote attacks
+
+/**
+ * Override PDFImage constructor to avoid vulnerability.
+ * @param {string} pdfFilePath PDF file path.
+ * @param {object} options Options for PDFImage conversion.
+ */
 function safePDFImage(pdfFilePath, options) {
   const filter_chars = /[!";|`$()&<>]/;
   if (filter_chars.test(pdfFilePath)) {
@@ -39,49 +51,41 @@ safePDFImage.prototype.constructor = safePDFImage;
 
 /**
  * Download a file.
- * 
- * @param {string} fileUrl 
- * @param {string} destPath 
+ * @param {string} fileUrl Url to download file from.
+ * @param {string} destPath Path where the downloaded file will be saved.
+ * @returns {Promise} Fetch promise.
  */
-function downloadFile(fileUrl, destPath) {
+async function downloadFile(fileUrl, destPath) {
   if (!fileUrl) return Promise.reject(new Error('Invalid fileUrl'));
   if (!destPath) return Promise.reject(new Error('Invalid destPath'));
-
-  return new Promise((resolve, reject) => {
-    fetch(fileUrl).then((res) => {
-      if (fs.existsSync(destPath)) {
-        return resolve(true);
+  if (fs.existsSync(destPath)) return Promise.resolve(true);
+  let mediaType = '';
+  return await fetch(fileUrl, {signal: AbortSignal.timeout(30000), method: 'GET'}).then((response) => {
+      if (response.ok || response.redirected) {
+        // Save plausible media type from response.
+        mediaType = response.headers.get('content-type') || '';
+        return response.arrayBuffer();
       } else {
-        const fileStream = fs.createWriteStream(destPath);
-        const altered = Object.fromEntries(Array.from(res.headers));
-        res.body.on('error', reject);
-        fileStream.on('finish', () => {
-          let contentType = altered['content-type'] || '';
-          contentType = contentType.toLowerCase();
-          if (contentType.includes('application/pdf') ) {
-            return resolve(true);
-          } else if (contentType.length === 0) {
-            contentType = childProcess.execSync('file --mime-type -b "' + destPath + '"').toString();
-            if (contentType.trim() === 'application/pdf') {
-              return resolve(true);
-            }
-          }
-          return reject({message: 'Loaded file is not a pdf'});
-        });
-        res.body.pipe(fileStream);
+        throw new Error('Failed to load file');
       }
-    }).catch((error) => {
-      return reject(error)
+    }).then(buffer => {
+        fs.writeFileSync(destPath, Buffer.from(buffer));
+        // If media type was not found from response headers, check the saved file for media type
+        if (!mediaType) {
+          mediaType = childProcess.execSync('file --mime-type -b "' + destPath + '"').toString();
+        }
+        if (!mediaType.toLowerCase().trim().includes('application/pdf')) {
+          throw new Error('Loaded file not a PDF ' + mediaType + ' ' + destPath);
+        }
+        return true;
     });
-  });
 }
 
 /**
- * Convert pdf to jpg and send status
- *
- * @param {string} source 
- * @param {string} destination 
- * @param {string} url
+ * Convert PDF file into a jpg.
+ * @param {string} source PDF file path.
+ * @param {string} destination Converted jpg file save path.
+ * @param {string} url From which URL the conversion was done. For debugging purposes.
  */
 function convertPDFtoJpg(source, destination, url) {
   // Check that the file is not corrupted
@@ -116,7 +120,7 @@ const imagePath = process.argv[4];
 const tmpDir = process.argv[5];
 
 const tmpPath = `${tmpDir}/${fileName}.pdf`;
-downloadFile(url, tmpPath).then((reason, error) => {
+downloadFile(url, tmpPath).then(() => {
   convertPDFtoJpg(tmpPath, imagePath, url);
 }).catch((error) => {
   formatMessageToParent(false, error.message || 'Unknown error', 1);
