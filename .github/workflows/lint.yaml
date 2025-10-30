@@ -12,9 +12,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Install ESLint
+      - name: Install node dependencies
         run: |
-          npm install eslint@8.10.0
+          npm install
 
       - name: Run ESLint
         run: npx eslint
