@@ -13,8 +13,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Install node dependencies
-        run: |
-          npm install
+        # Use --ignore-scripts to prevent pre/post install scripts from running
+        # (a security precaution).
+        run: npm install --ignore-scripts
 
       - name: Run ESLint
         run: npx eslint
