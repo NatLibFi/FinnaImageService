@@ -104,7 +104,7 @@ function removeFile(file) {
 
 /**
  * Is the given string a valid URL.
- * @param {string} s String to validate.
+ * @param {string} s
  * @returns {boolean} True if the string is a valid URL.
  */
 const stringIsAValidUrl = (s) => {
