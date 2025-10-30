@@ -74,8 +74,8 @@ async function downloadFile(fileUrl, destPath) {
         if (!mediaType) {
           mediaType = childProcess.execSync('file --mime-type -b "' + destPath + '"').toString();
         }
-        if (mediaType.toLowerCase().trim() !== 'application/pdf') {
-          throw new Error('Loaded file not a PDF');
+        if (!mediaType.toLowerCase().trim().includes('application/pdf')) {
+          throw new Error('Loaded file not a PDF ' + mediaType + ' ' + destPath);
         }
         return true;
     });

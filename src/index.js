@@ -35,6 +35,7 @@ const imagesDir = path.join(__dirname, 'images');
 const logs = path.join(__dirname, 'logs');
 const tmpDir = path.join(__dirname, 'tmp');
 const blockedFile = path.join(__dirname, 'blocked');
+const handleConversionFile = path.join(__dirname, 'handle_conversion.js');
 
 const fileRotateTransport = new winston.transports.DailyRotateFile({
   filename: "logs/log-%DATE%.log",
@@ -127,7 +128,7 @@ async function spawnChild(url, fileName, imagePath) {
   // We got everything, lets fork
   var worker = spawn(
     'node',
-    ['handle_conversion.js',url,fileName,imagePath,tmpDir],
+    [handleConversionFile,url,fileName,imagePath,tmpDir],
     {
       stdio: [null, null, null, 'ipc']
     }
