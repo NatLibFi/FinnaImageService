@@ -30,7 +30,7 @@ RUN cp ghostscript-10.0.0-linux-x86_64/gs-1000-linux-x86_64 /usr/bin/gs
 # Add rights to use ghostscript
 RUN chmod +rwx /usr/bin/gs
 
-RUN chmod +rwx /usr/src/app/handle_conversion.js
+RUN chmod +rwx /usr/src/app/src/handle_conversion.js
 
 WORKDIR /usr/src/app
 
